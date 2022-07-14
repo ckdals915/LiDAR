@@ -85,5 +85,57 @@ Initialization은 uniform distribution을 사용하여 random하게 initialize�
 
 PointPillars에 사용된 Loss function은 SECOND에서와 같다. Ground truth와 anchors는 (x, y, z, w, h, I, theta)로 정의된다. 이 때 angle localization 만으로는 뒤집어진 box들을 구별하지 못하므로, softmax classification을 통해 heading을 학습한다.
 
+<img src="https://github.com/ckdals915/LiDAR/blob/main/docs/pictures/Loss_Function.jpg?raw=true?raw=true?raw=true?raw=true" style="zoom:80%;" />
+
+
+
+## IV. Experimental Setup
+
+Dataset은 KITTI dataset을 사용하였으며, xy resolution은 0.16m로 max number of pillars per sample(P): 12000, max number of points per pillar(N): 100으로 하였다. 각 class anchor는 width, length, height, z center, 두 방향의 orientation(0, 90)으로 표현하였다. Positive anchor와 negative anchor에 대해서 loss를 적용하였고 NMS(IOU = 0.5)를 통해 box regression을 하였다.
+
+* **Data Augmentation**
+
+  Data augmentation은 좋은 성능을 위해서 매우 중요하다. SECOND를 따라 모든 3D box의 class에 대한 ground truth와 그 3D box들 안에 속하는 point cloud에 관한 lookup table을 만든다. 그리고 각 ground truth sample에 대해 class 별로 15, 0, 8개의 car, ped, cyc sample을 각각 뽑아서 현재 point cloud에 추가한다. 다음으로 모든 ground truth box들은 개별적으로 rotation과 translation을 통해 augmented 된다. 마지막으로 모든 point cloud와 gt box들에 대해 x축방향으로 mirroring flip을 하고 global rotation과 scaling도 적용하고 global translation도 적용한다.
+
+
+
+## V. Results
+
+<img src="https://github.com/ckdals915/LiDAR/blob/main/docs/pictures/Quantitative_Analysis.jpg?raw=true?raw=true?raw=true?raw=true" style="zoom:80%;" />
+
+속도 측면에서나 정확도 부분에서 SOTA의 성능을 보였다. 특히 속도가 압도적으로 빨랐다.
+
+
+
+## VI. Realtime Inference
+
+PointPillars는 quantitative analysis에서 볼 수 있듯이 running time에서 큰 improvement를 보였다. 이러한 결과에는 Encoding 단계에 원인이 있다. 기존에 VoxelNet에서 쓰이던 encoder가 190ms, SECOND에서 쓰이던 encoder가 48ms였는데, 본 논문에서는 1.3ms로 큰 향상을 보였다. 또한 2개의 연속적인 PointNet의 사용 대신 간소화된 PointNet을 사용함으로써 2.5ms를 단축하였고, 첫번째 block dimension을 64로 줄임으로써 4.5ms를 단축하였다.
+
+LiDAR의 Hz가 20Hz로 이미 실행시간은 만족하지만, PointPillar의 경우 FOV만 사용했기에 전체적인 scene에 대해서도 빠른 실행시간을 보여야 하며, autonomous vehicle의 특성상, 더 낮은 computing power에서도 빠른 실행시간을 보여야 하는 문제가 남아있다. 
+
+
+
+## VII. Ablation Studies
+
+<img src="https://github.com/ckdals915/LiDAR/blob/main/docs/pictures/Ablation_Studies.jpg?raw=true?raw=true?raw=true?raw=true" style="zoom:80%;" />
+
+**Figure. PointPillars의 다른 network들과의 비교와 speed-accuracy trade-off**
+
+### 1. Spatial Resolution
+
+Spatial binning을 다양하게 하는 것은 speed와 accuracy의 trade off를 보였다. 작은 pillar는 보다 정확한 localization 성능과 많은 feature를 얻을 수 있었고, 큰 pillar는 빠른 속도를 보였다. Car class는 bin size가 달라져도 성능이 stable했는 반면, ped/cyc class는 pillar의 크기에 영향을 받았다.
+
+
+
+### 2. Per Box Data Augmentation
+
+VoxelNet과 SECOND에 대해서도 대규모의 augmentation을 적용하였다. 하지만 최소한의 box augmentation이 더 좋은 성능을 보였다. Ground truth sampling이 box augmentation의 효과를 저하시키는 것으로 보인다.
+
+
+
+### 3. Point Decorations
+
+Encoder는 raw LiDAR point의 x, y, z, r(reflection)를 받아 추가적인 channel을 생성한다. 이 channel을 생성함으로써 point들은 standardized된 local context를 갖게 된다. Cluster offset에 따라 표준화하는 방식이 다르게 되는데, 이는 point들을 통계적으로 summary하여 point간에 dependency를 생성하는 것에 이용된다. 이를 통해 data를 subsampling과 augmentation을 할 때 높은 variance를 가지게 되는 것을 막아준다.
+
 
 
