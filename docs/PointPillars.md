@@ -61,35 +61,29 @@ $$
 
 **Figure 3. Backbone Network(2D conv)**
 
+PointPillars의 backbone은 VoxelNet의 3D Conv와 유사하다. Backbone network는 두 개의 sub-network를 갖는다. Top-down network는 점점 작은 spatial resolution feature를 생성하고, 두 번째 network는 이 top-down network의 feature를 up-sampling하고 concatenation한다.
 
 
 
+### 3. Detection Head
 
-## III. PointNet Architecture
-
-<img src="https://github.com/ckdals915/LiDAR/blob/main/docs/pictures/PointNet_Architecture.jpg?raw=true?raw=true?raw=true?raw=true" style="zoom:80%;" />
-
-Architecture에는 3가지 주요 모듈이 있다. **max pooling layer**는 모든 점들로부터 정보를 모으기 위한 symmetric 함수이며, **지역 및 전역 정보 조합 구조**, 입력 점군과 점 특징들을 정렬하는 2개의 **joint alignment network**로 구성된다. 
+Single Shot Detector(SSD) setup을 사용하여 3D object detection을 하였다. 2D와의 차이점은 height와 elevation이 추가된 regression target으로 사용되었다. 만약 다른 task를 하고 싶다면 detection head 대신 다른 head로 바꾸면 된다.
 
 
 
-### 1. Symmetry Function for Unordered Input
+## III. Implementation Details
 
-정렬은 2차원에서 좋은 solution이지만 높은 차원(3D)의 자료 정렬은 존재하지 않는다. 예를 들어, 고차원 공간의 점들을 1차원 실수 선으로 projection한 후 정렬할 수 있으나, 이에 대한 역변환으로 원 데이터를 복구할 수 없다. 이를 해결하기 위한 PointNet의 아이디어는 변환된 요소에 대한 **symmetric function**(max-pooling)을 적용한 점군을 정의하는 것이다. 이는 순서에 상관없이 결과가 일정하게 나오기 위함이다. 
+ ### 1. Network
 
-f({x1, ..., xn}) = g(h(x1), ..., h(xn))
+Initialization은 uniform distribution을 사용하여 random하게 initialize하였다. Encoder Network는 C=64개의 output feature를 가졌고, car과 pedestrian/cyclist 각각에 대해 backbone은 첫 번째 block에서의 stride(S = 2 for car, S = 1 for ped/cyc)를 제외하고는 일치한다.
 
-이 때 g가 max pooling을 해주는 symmetric function이다.
-
-
-
-### 2. A Local and Global Information Combination Structure
-
-벡터 f1, ..., fk 형태의 출력은 입력 집합에 대한 global information이다. SVM이나 MLP를 이용해 형상의 전역 특징을 학습하는 것은 쉽지만, local 및 global information을 구분해 얻는 것이 필요하다. **전역 특징이 계산된 후, 각 점들의 특징과 전역 특징을 연결하여 포인트 특징을 얻는다.** 
+각 network는 3개의 Block으로 이루어져 있으며, 각각의 block들 또한 upsampling을 한 후 concatenated되어 총 6C개의 feature가 detection head에 사용된다.
 
 
 
-### 3. Joint Alignment Network
+### 2. Loss
 
-점군의 labeling은 형상 변환(translation, rotation)에 대해 불변이어야 한다. 이를 위해 mini-network(T-net)을 정의하고 적용한다. 이 때 T-net에서 transformation된 matrix를 추정하여 사용한다. 
+PointPillars에 사용된 Loss function은 SECOND에서와 같다. Ground truth와 anchors는 (x, y, z, w, h, I, theta)로 정의된다. 이 때 angle localization 만으로는 뒤집어진 box들을 구별하지 못하므로, softmax classification을 통해 heading을 학습한다.
+
+
 
